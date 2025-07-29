@@ -1,2 +1,1 @@
-# Demir Kırtasiye Transfer İrsaliye Kontrol
-Bu sürümde liste satırına tıklanınca ürün popup açılıyor.
+# Demir Kırtasiye Transfer İrsaliye Kontrol\nSon sürüm, kamera düzeltildi ve otomatik başlıyor.
