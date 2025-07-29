@@ -157,6 +157,7 @@
         }
       }
       popupOverlay.style.display = 'none';
+      if (!cameraActive) manualInput.focus();
     };
 
     incorrectBtn.onclick = () => {
@@ -169,6 +170,7 @@
         }
       }
       popupOverlay.style.display = 'none';
+      if (!cameraActive) manualInput.focus();
     };
 
     function startScanner() {
@@ -204,13 +206,14 @@
       document.getElementById('camera').style.display = 'block';
       cameraActive = true;
       startScanner();
-      manualInput.blur();
+      manualInput.blur(); // Kamera açıldığında input odaktan çıksın
     });
 
     stopCameraBtn.addEventListener('click', () => {
       document.getElementById('camera').style.display = 'none';
       cameraActive = false;
       Quagga.stop();
+      manualInput.focus(); // Kamera kapalıyken barkod alanına odaklansın
     });
 
     switchBtn.addEventListener('click', () => {
