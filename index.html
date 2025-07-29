@@ -8,14 +8,16 @@
     body { font-family: Arial, sans-serif; background: #f5f7fa; text-align: center; padding: 20px; }
     h1 { color: #2c3e50; display: inline-block; margin-left: 10px; }
     #header { display: flex; align-items: center; justify-content: center; }
-    #fileInput, #manualBarcode, #missingBtn, #printBtn, #switchBtn { margin: 10px 0; padding: 10px; font-size: 16px; }
-    #camera { width: 100%; max-width: 400px; border: 2px solid #3498db; border-radius: 8px; margin: 10px auto; height: 300px; }
+    #fileInput, #manualBarcode, #missingBtn, #printBtn, #switchBtn, #startCameraBtn { margin: 10px 0; padding: 10px; font-size: 16px; }
+    #camera { width: 95%; max-width: 320px; border: 2px solid #3498db; border-radius: 8px; margin: 10px auto; height: 200px; display:none; }
     #productList { margin-top: 20px; text-align: left; }
-    .item { display: flex; justify-content: space-between; padding: 12px; margin: 6px 0; border-bottom: 1px solid #ddd; background-color: #ffffff; font-size: 18px; }
+    .item { display: flex; justify-content: space-between; padding: 12px; margin: 6px 0; border-bottom: 1px solid #ddd; background-color: #ffffff; font-size: 18px; cursor: pointer; }
     .scanned { background-color: #2ecc71; color: #fff; }
-    #missingBtn, #printBtn, #switchBtn { background-color: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; }
+    #missingBtn, #printBtn, #switchBtn, #startCameraBtn { background-color: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; }
     #printBtn { background-color: #3498db; margin-left: 10px; }
     #switchBtn { background-color: #9b59b6; }
+    #startCameraBtn { background-color: #27ae60; }
+
     #popupOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 999; }
     #popupContent { background: #2ecc71; color: white; padding: 30px; border-radius: 12px; width: 80%; max-width: 400px; text-align: center; }
     #popupContent h2 { font-size: 28px; margin-bottom: 15px; }
@@ -23,9 +25,10 @@
     #closePopup { padding: 10px 20px; font-size: 18px; border: none; border-radius: 6px; background: white; color: #2ecc71; cursor: pointer; }
     #popupContent.error { background: #e74c3c; }
     #popupContent.warning { background: #f39c12; }
+
     @media print {
       body { background: white; }
-      #fileInput, #manualBarcode, #camera, #missingBtn, #printBtn, #switchBtn { display: none; }
+      #fileInput, #manualBarcode, #camera, #missingBtn, #printBtn, #switchBtn, #startCameraBtn { display: none; }
       h1 { color: black; }
     }
   </style>
@@ -35,13 +38,18 @@
     <img src="logo.png" alt="Logo" style="height:50px;">
     <h1>Demir Kırtasiye Transfer İrsaliye Kontrol</h1>
   </div>
+
   <input type="file" id="fileInput" accept=".xlsx,.csv"><br>
   <input type="text" id="manualBarcode" placeholder="Barkodu yazıp Enter’a bas" /><br>
+
+  <button id="startCameraBtn">📷 Kamerayı Aç</button>
   <button id="switchBtn">📷 Kamerayı Değiştir</button>
   <div id="camera"></div>
+
   <div id="productList"></div>
   <button id="missingBtn">Eksikleri Göster</button>
   <button id="printBtn">Yazdır</button>
+
   <div id="popupOverlay">
     <div id="popupContent">
       <h2 id="popupProductName"></h2>
@@ -49,11 +57,14 @@
       <button id="closePopup">Devam Et</button>
     </div>
   </div>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
   <script>
     let products = [];
-    let currentFacingMode = "environment";
+    let currentFacingMode = "environment"; // back camera default
+    let cameraActive = false;
+
     const popupOverlay = document.getElementById('popupOverlay');
     const popupContent = document.getElementById('popupContent');
     const popupProductName = document.getElementById('popupProductName');
@@ -62,14 +73,20 @@
     const manualInput = document.getElementById('manualBarcode');
     const printBtn = document.getElementById('printBtn');
     const switchBtn = document.getElementById('switchBtn');
+    const startCameraBtn = document.getElementById('startCameraBtn');
+
     closePopup.addEventListener('click', () => {
       popupOverlay.style.display = 'none';
       popupContent.className = '';
-      manualInput.focus();
+      if (!cameraActive) {
+        manualInput.focus();
+      }
     });
+
     printBtn.addEventListener('click', () => {
       window.print();
     });
+
     document.getElementById('fileInput').addEventListener('change', handleFile);
     manualInput.addEventListener('keypress', function(e) {
       if (e.key === 'Enter') {
@@ -77,6 +94,7 @@
         this.value = '';
       }
     });
+
     function handleFile(event) {
       const file = event.target.files[0];
       if(!file) return;
@@ -92,6 +110,7 @@
       };
       reader.readAsArrayBuffer(file);
     }
+
     function renderProducts() {
       const container = document.getElementById('productList');
       container.innerHTML = '';
@@ -103,9 +122,18 @@
         div.className = 'item';
         div.setAttribute('data-barcode', barkod);
         div.innerHTML = `<span><b>${barkod}</b> - ${urunAdi}</span><span><b>${adet} ADET</b></span>`;
+        // Satıra tıklayınca ürün popup olarak açılsın
+        div.addEventListener('click', () => {
+          popupContent.className = '';
+          popupProductName.textContent = urunAdi || "Ürün Adı Yok";
+          popupProductQty.textContent = (adet || "") + " ADET";
+          popupOverlay.style.display = 'flex';
+          // Bu tıklama manuel görüntüleme olduğu için ürünü işaretlemeyecek
+        });
         container.appendChild(div);
       });
     }
+
     function markAsScanned(barcode) {
       const product = products.find(p => p.Barkodu == barcode || p["BARKODU"] == barcode || p["Barkod"] == barcode);
       if (!product) {
@@ -122,14 +150,21 @@
         popupOverlay.style.display = 'flex';
         return;
       }
-      product.scanned = true;
-      const itemDiv = document.querySelector(`[data-barcode='${barcode}']`);
-      if (itemDiv) itemDiv.classList.add('scanned');
+      // popup onay ekranı gösterelim ve onaydan sonra işaretleyelim
       popupContent.className = '';
       popupProductName.textContent = product["Stok Adı"] || "Ürün Adı Yok";
       popupProductQty.textContent = (product.Miktarı || "") + " ADET";
       popupOverlay.style.display = 'flex';
+      closePopup.onclick = () => {
+        popupOverlay.style.display = 'none';
+        product.scanned = true;
+        const itemDiv = document.querySelector(`[data-barcode='${barcode}']`);
+        if (itemDiv) itemDiv.classList.add('scanned');
+        popupContent.className = '';
+        if (!cameraActive) manualInput.focus();
+      };
     }
+
     document.getElementById('missingBtn').addEventListener('click', () => {
       const missing = products.filter(p => !p.scanned);
       if (missing.length === 0) {
@@ -139,6 +174,8 @@
         alert(`Eksik Ürünler (${missing.length}):\n` + eksikler.join('\n'));
       }
     });
+
+    // Kamera kontrolü
     function startScanner() {
       Quagga.init({
         inputStream: {
@@ -165,15 +202,24 @@
         Quagga.start();
       });
     }
-    window.addEventListener('load', () => {
-      startScanner();
-    });
+
     Quagga.onDetected(data => {
       const code = data.codeResult.code;
       console.log("Barkod okundu (Quagga):", code);
       markAsScanned(code);
     });
+
+    // Kamera açma butonu
+    startCameraBtn.addEventListener('click', () => {
+      document.getElementById('camera').style.display = 'block';
+      cameraActive = true;
+      startScanner();
+      manualInput.blur(); // mobilde klavyeyi kapatır
+    });
+
+    // Kamera değiştirme butonu
     switchBtn.addEventListener('click', () => {
+      if (!cameraActive) return;
       currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
       Quagga.stop();
       startScanner();
