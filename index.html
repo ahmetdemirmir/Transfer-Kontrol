@@ -131,8 +131,8 @@
       }
       if (product.scanned) {
         popupContent.className = 'warning';
-        popupProductName.textContent = "Daha Önce Okutuldu Onay Verildi";
-        popupProductQty.textContent = "";
+        popupProductName.textContent = (product["Stok Adı"] || "Ürün Adı Yok") + " (Daha Önce Okutuldu)";
+        popupProductQty.textContent = (product.Miktarı || "") + " ADET";
         popupOverlay.style.display = 'flex';
         errorSound.play();
         if (navigator.vibrate) navigator.vibrate([150]);
