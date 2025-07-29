@@ -1,2 +1,2 @@
-# Barkod İrsaliye Kontrol
-Bu dosyayı GitHub Pages'e yükleyip yayına alabilirsin.
+# Barkod Kontrol App
+Bu dosyayı GitHub Pages'e yükleyerek test edebilirsin.
