@@ -1,1 +1,1 @@
-# Demir Kırtasiye Transfer İrsaliye Kontrol\nBu dosyayı GitHub Pages'e yükleyerek kullanabilirsiniz.
+# Demir Kırtasiye Transfer İrsaliye Kontrol\nSon sürüm, kamera düzeltildi ve otomatik başlıyor.
