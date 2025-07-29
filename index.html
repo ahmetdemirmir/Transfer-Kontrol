@@ -30,7 +30,7 @@
     #popupContent.warning { background: #f39c12; }
   </style>
 </head>
-<body>
+<body onload="manualInput.focus()">
   <div id="header">
     <img src="logo.png" alt="Logo" style="height:50px;">
     <h1>Demir Kırtasiye Transfer İrsaliye Kontrol</h1>
@@ -182,7 +182,8 @@
           constraints: {
             width: { min: 640 },
             height: { min: 480 },
-            facingMode: currentFacingMode
+            facingMode: currentFacingMode,
+            advanced: [{ focusMode: "continuous" }]
           }
         },
         decoder: { readers: ["ean_reader", "code_128_reader", "upc_reader"] },
@@ -206,14 +207,14 @@
       document.getElementById('camera').style.display = 'block';
       cameraActive = true;
       startScanner();
-      manualInput.blur(); // Kamera açıldığında input odaktan çıksın
+      manualInput.blur(); // Kamera açıldığında odaktan çıkar
     });
 
     stopCameraBtn.addEventListener('click', () => {
       document.getElementById('camera').style.display = 'none';
       cameraActive = false;
       Quagga.stop();
-      manualInput.focus(); // Kamera kapalıyken barkod alanına odaklansın
+      manualInput.focus(); // Kamera kapalıyken otomatik odak
     });
 
     switchBtn.addEventListener('click', () => {
