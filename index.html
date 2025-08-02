@@ -9,7 +9,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsPDF/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
 <style>
-  /* Stil kodları */
   body {
     font-family: 'Roboto', sans-serif;
     background: #f5f7fa;
@@ -129,7 +128,6 @@
     margin: 5px 0;
     font-weight: 600;
   }
-  /* Popup stil */
   .popup {
     display: none;
     position: fixed;
@@ -162,6 +160,20 @@
     font-size: 18px;
     margin: 8px 0;
   }
+  /* BURADAN BAŞLIYOR */
+  #product-price {
+    font-size: 72px;
+    color: #e60000;
+    font-weight: 900;
+    margin: 8px 0;
+  }
+  #product-date {
+    font-size: 36px;
+    color: #5a0000;
+    font-weight: 700;
+    margin: 8px 0;
+  }
+  /* BURADA BİTİYOR */
   .qty-input {
     width: 60px;
     font-size: 20px;
@@ -263,25 +275,32 @@ const btnSwitchCamera = document.getElementById('btnSwitchCamera');
 const btnManualEntry = document.getElementById('btnManualEntry');
 
 function init() {
-  manualInput.focus();
+  manualInput.addEventListener('click', () => {
+    manualInput.focus();
+  });
   disableManualInput(false);
+  if(!cameraActive) {
+    manualInput.focus();
+  }
   autoStartCamera();
 }
 
 function autoStartCamera() {
-  // Otomatik kamera başlatmayı deneyelim
   startCamera();
 }
 
 function disableManualInput(disabled) {
   manualInput.disabled = disabled;
-  if(!disabled) manualInput.focus();
+  if(!disabled && !cameraActive) {
+    manualInput.focus();
+  }
 }
 
 function toggleManualEntry() {
   if(manualInput.disabled) {
     disableManualInput(false);
     stopCamera();
+    manualInput.focus();
   } else {
     disableManualInput(true);
     startCamera();
@@ -348,20 +367,18 @@ function stopCamera() {
 function onBarcodeDetected(data) {
   let code = data.codeResult.code;
   if(!code) return;
-  Quagga.offDetected(onBarcodeDetected); // Geçici olarak dinleyiciyi kapat
+  Quagga.offDetected(onBarcodeDetected);
   Quagga.stop();
   quaggaRunning = false;
   cameraActive = false;
   disableManualInput(false);
 
-  // Ses ve titreşim uyarısı
   playBeep();
   vibrateDevice();
 
   logMessage(`Barkod okundu: ${code}`);
   addToScannedList(code);
 
-  // Ürün popup aç
   let found = excelData.find(item => String(item["Barkodu"]) === code);
   if(found) {
     showPopup(found);
@@ -435,10 +452,6 @@ excelInput.addEventListener("change", (e) => {
   reader.readAsArrayBuffer(file);
 });
 
-function focusBarcode() {
-  manualInput.focus();
-}
-
 function searchBarcode() {
   let code = manualInput.value.trim();
   if(code === "") return;
@@ -449,7 +462,7 @@ function searchBarcode() {
   } else {
     showErrorPopup(code);
   }
-  focusBarcode();
+  if(!cameraActive) manualInput.focus();
 }
 
 function showPopup(product) {
@@ -486,12 +499,12 @@ function confirmLabel() {
   let qty = document.getElementById("qty").value;
   let isCampaign = document.getElementById("campaignCheck").checked;
   document.getElementById("popup").style.display = "none";
-  manualInput.focus();
+  if(!cameraActive) manualInput.focus();
 }
 
 function closePopup() {
   document.getElementById("popup").style.display = "none";
-  manualInput.focus();
+  if(!cameraActive) manualInput.focus();
 }
 
 function logMessage(msg) {
