@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Demir Kırtasiye - Kamera Barkod Okuma ve Etiket</title>
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@700&display=swap" rel="stylesheet" />
-<!-- SheetJS KÜTÜPHANESİ EKLENDİ -->
+<!-- SheetJS eklendi -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
 <style>
@@ -73,11 +73,11 @@
 </header>
 <div class="container">
   <div class="upload-section">
-    <button class="btn" onclick="fetchSheetData()">🔄 Verileri Otomatik Al (Google Sheets)</button>
+    <button class="btn" onclick="fetchSheetData()">🔄 Verileri Otomatik Al</button>
     <label for="excelUpload" class="btn">📂 Excel Yükle (Manuel)</label>
     <input type="file" id="excelUpload" accept=".csv,.xlsx,.xls" />
     <button class="btn" onclick="openManualSearch()">🔍 Manuel Ürün Ara</button>
-    <p style="width:100%;margin-bottom:0;">Excel dosyanızı buradan yükleyin veya Google Sheets ile verileri çekin</p>
+    <p style="width:100%;margin-bottom:0;">Excel dosyanızı buradan yükleyin veya verileri çekin</p>
     <div id="lastUpdate" style="font-size:15px; margin-top:8px; color:#444; width:100%;"></div>
   </div>
 
@@ -186,37 +186,23 @@ function cleanPrice(str) {
 function cleanDate(val) {
   if (!val) return "Bilinmiyor";
   val = String(val).replace(/"/g, '').replace(/[^0-9./-]/g, '');
-  // 2025-06-14 veya 6/14/2025 gibi ise çevir
+  // ISO veya US formatı ise Türkçeye çevir
   if (val.match(/^\d{4}-\d{2}-\d{2}$/)) {
     let [yil, ay, gun] = val.split("-");
-    return gun + "/" + ay + "/" + yil;
+    return `${gun}/${ay}/${yil}`;
   }
-  if (val.match(/^\d{1,2}[./-]\d{1,2}[./-]\d{4}$/)) {
-    // 14.06.2025 veya 14/6/2025 zaten Türk
-    return val.replace(/-/g, "/").replace(/\./g, "/");
-  }
-  if (val.match(/^\d{1,2}[./-]\d{1,2}[./-]\d{2}$/)) {
-    // 14.6.25 => 14/6/2025
-    let [g, a, y] = val.split(/[./-]/);
-    return g + "/" + a + "/20" + y;
-  }
-  if (val.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
-    return val;
-  }
-  if (val.match(/^\d{1,2}\/\d{1,2}\/\d{2}$/)) {
-    let [g, a, y] = val.split("/");
-    return g + "/" + a + "/20" + y;
-  }
-  if (val.match(/^\d{4}\/\d{1,2}\/\d{1,2}$/)) {
-    let [y, a, g] = val.split("/");
-    return g + "/" + a + "/" + y;
-  }
-  // ABD tarzı 6/14/2025 ise
+  // ABD tarzı 6/14/2025 veya 06/14/2025 ise TR'ye çevir
   if (val.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
     let [ay, gun, yil] = val.split("/");
-    return gun + "/" + ay + "/" + yil;
+    // Eğer gün 13'ten büyükse ABD formatı
+    if (parseInt(gun) > 12) return `${gun}/${ay}/${yil}`;
+    // Eğer ay 13'ten büyükse TR zaten
+    if (parseInt(ay) > 12) return `${ay}/${gun}/${yil}`;
+    // Farketmez, ABD varsay TR çevir
+    return `${gun}/${ay}/${yil}`;
   }
-  return val.length > 1 ? val : "Bilinmiyor";
+  // Kalanları doğrudan ver
+  return val.length > 1 ? val.replace(/-/g, "/").replace(/\./g, "/") : "Bilinmiyor";
 }
 
 // ========== CSV YÜKLEME & SHEET'TEN ÇEKME ========== //
@@ -342,7 +328,9 @@ function filterManualSearch() {
     li.style.borderBottom = "1px solid #eee";
     li.addEventListener('click', () => {
       closeManualSearch();
-      showPopup(item);
+      // --- KLAVYEYİ KAPAT ---
+      document.activeElement.blur();
+      setTimeout(() => showPopup(item), 100);
     });
     resultList.appendChild(li);
   });
@@ -372,6 +360,12 @@ function init() {
   manualInput.addEventListener('click', () => { manualInput.focus(); });
   disableManualInput(false);
   if(!cameraActive) { manualInput.focus(); }
+  // SheetJS yükle
+  if (typeof XLSX === "undefined") {
+    var script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+    document.head.appendChild(script);
+  }
 }
 function disableManualInput(disabled) {
   manualInput.disabled = disabled;
