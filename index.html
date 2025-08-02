@@ -162,14 +162,28 @@ function cleanPrice(str) {
   let match = str.match(/\d+[.,]?\d*/);
   return match ? match[0].replace('.', ',') : "";
 }
+
+// --- SADECE BU FONKSİYON GÜNCEL! ---
 function cleanDate(val) {
   if (!val) return "Bilinmiyor";
-  val = String(val).replace(/"/g, '').replace(/[^0-9./-]/g, '');
-  if (val.match(/^\d{2}[./-]\d{2}[./-]\d{4}$/) || val.match(/^\d{4}[./-]\d{2}[./-]\d{2}$/)) {
-    return val;
+  val = String(val).replace(/"/g, '').trim();
+  // ISO: 2024-08-03 gibi gelirse
+  if (val.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    const [y, m, d] = val.split("-");
+    return `${d}.${m}.${y}`;
+  }
+  // 14/06/2024 veya 14.06.2024
+  if (val.match(/^\d{2}[./-]\d{2}[./-]\d{4}$/)) {
+    return val.replace(/-/g,".").replace(/\//g,".");
+  }
+  // 2024/06/14 gibi gelirse
+  if (val.match(/^\d{4}[./-]\d{2}[./-]\d{2}$/)) {
+    const [y, m, d] = val.split(/[./-]/);
+    return `${d}.${m}.${y}`;
   }
   return val.length > 1 ? val : "Bilinmiyor";
 }
+// --- SADECE BURASI GÜNCELLENDİ! ---
 
 // ========== CSV YÜKLEME & SHEET'TEN ÇEKME ========== //
 function fetchSheetData() {
