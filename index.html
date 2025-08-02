@@ -118,7 +118,7 @@
 let excelData = [];
 let selectedProduct = null;
 let cameraActive = false;
-let currentCamera = 'environment'; // 'environment' arka kamera, 'user' ön kamera
+let currentCamera = 'environment';
 let quaggaRunning = false;
 let selectedQty = 1;
 
@@ -154,14 +154,14 @@ function fetchSheetData() {
     })
     .then(csvText => {
       const rows = csvText.split("\n").map(row => row.split(","));
-      // Başlık ve veri eşleşmesini buradan güncelleyebilirsin:
       const headers = rows[0];
       const dataRows = rows.slice(1).filter(row => row[0]);
       excelData = dataRows.map(row => {
         let obj = {};
         headers.forEach((h, i) => obj[h] = row[i]);
-        // Fiyat değişiklik tarihi sütununu da ayarla
-        obj["Fiyat Değişiklik Tarihi"] = row[headers.findIndex(h => h && h.trim() === "Satış Fiyatı 1 Değ. Tar.")];
+        // Fiyat ve diğer alanlarda istenmeyen karakterler temizleniyor
+        obj["MAĞAZA"] = cleanPrice((obj["MAĞAZA"] || ""));
+        obj["Fiyat Değişiklik Tarihi"] = cleanDate(row[headers.findIndex(h => h && h.trim() === "Satış Fiyatı 1 Değ. Tar.")]);
         return obj;
       });
       logMessage(`✅ ${excelData.length} ürün Google Sheets'den yüklendi!`);
@@ -171,6 +171,23 @@ function fetchSheetData() {
       showLoadingPopup(false);
       alert("Google Sheets verileri alınamadı!\n" + e);
     });
+}
+
+// Fiyat formatlayıcı: Tırnak, harf, boşluk, ADET vb. siler sadece sayı ve nokta/virgül bırakır
+function cleanPrice(str) {
+  if (!str) return "";
+  return String(str).replace(/[^\d.,]/g, "");
+}
+
+// Tarih temizleyici: Geçerli tarih mi, metin mi?
+function cleanDate(val) {
+  if (!val) return "Bilinmiyor";
+  let d = String(val).replace(/"/g, '').replace(/[^0-9./-]/g, '');
+  // (dd.mm.yyyy) veya (yyyy-mm-dd) olursa onu yaz, yoksa "Bilinmiyor"
+  if (d.match(/^\d{2}[./-]\d{2}[./-]\d{4}$/) || d.match(/^\d{4}[./-]\d{2}[./-]\d{2}$/)) {
+    return d;
+  }
+  return val.length > 1 ? val : "Bilinmiyor";
 }
 
 const excelInput = document.getElementById("excelUpload");
@@ -193,26 +210,9 @@ excelInput.addEventListener("change", (e) => {
     excelData = dataRows.map((row) => {
       let obj = {};
       headers.forEach((h, i) => (obj[h] = row[i]));
-
-      const rawDate = (priceChangeDateIndex !== -1) ? row[priceChangeDateIndex] : null;
-
-      if (rawDate) {
-        let dateVal;
-        if (rawDate instanceof Date) {
-          dateVal = rawDate.toLocaleDateString("tr-TR");
-        } else if (typeof rawDate === "number") {
-          const excelEpoch = new Date(Date.UTC(1899, 11, 30));
-          dateVal = new Date(excelEpoch.getTime() + rawDate * 86400000).toLocaleDateString("tr-TR");
-        } else if (typeof rawDate === "string") {
-          dateVal = rawDate;
-        } else {
-          dateVal = "Bilinmiyor";
-        }
-        obj["Fiyat Değişiklik Tarihi"] = dateVal;
-      } else {
-        obj["Fiyat Değişiklik Tarihi"] = "Bilinmiyor";
-      }
-
+      // Fiyatı ve tarihi temizle
+      obj["MAĞAZA"] = cleanPrice(obj["MAĞAZA"]);
+      obj["Fiyat Değişiklik Tarihi"] = cleanDate((priceChangeDateIndex !== -1) ? row[priceChangeDateIndex] : null);
       return obj;
     });
 
