@@ -6,6 +6,7 @@
 <title>Demir Kırtasiye - Kamera Barkod Okuma ve Etiket</title>
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@700&display=swap" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   body {font-family: 'Roboto', sans-serif; background: #f5f7fa; margin:0; padding:0; display:flex; flex-direction: column; align-items: center;}
   header {background:#fff; width: 100%; padding: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); display:flex; align-items:center; justify-content:center;}
@@ -53,10 +54,10 @@
 <div class="container">
   <div class="upload-section">
     <button class="btn" onclick="fetchSheetData()">🔄 Verileri Otomatik Al</button>
-    <label for="excelUpload" class="btn">📂 CSV Yükle</label>
-    <input type="file" id="excelUpload" accept=".csv" />
+    <label for="excelUpload" class="btn">📂 Excel Yükle</label>
+    <input type="file" id="excelUpload" accept=".xlsx" />
     <button class="btn" onclick="openManualSearch()">🔍 Manuel Ürün Ara</button>
-    <p>CSV dosyanızı buradan yükleyin veya Google Sheets ile verileri çekin</p>
+    <p>Excel dosyanızı buradan yükleyin veya Google Sheets ile verileri çekin</p>
     <div id="lastUpdate" style="font-size:15px; margin-top:8px; color:#444;"></div>
   </div>
 
@@ -162,44 +163,23 @@ function cleanPrice(str) {
   let match = str.match(/\d+[.,]?\d*/);
   return match ? match[0].replace('.', ',') : "";
 }
-
-// --- SADECE BU FONKSİYON GÜNCEL! ---
 function cleanDate(val) {
   if (!val) return "Bilinmiyor";
   val = String(val).replace(/"/g, '').replace(/[^0-9./-]/g, '');
-
-  // MM/DD/YYYY -> DD.MM.YYYY çevir
-  let mmddyyyy = val.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-  if (mmddyyyy) {
-    let gun = mmddyyyy[2].padStart(2, "0");
-    let ay = mmddyyyy[1].padStart(2, "0");
-    let yil = mmddyyyy[3];
-    return `${gun}.${ay}.${yil}`;
+  // ABD tarih formatını (MM/DD/YYYY) Türkçe'ye çevir!
+  if (val.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
+    let [ay, gun, yil] = val.split("/");
+    if (Number(ay) > 12) [ay, gun] = [gun, ay]; // Garanti olsun!
+    return `${gun.padStart(2, "0")}/${ay.padStart(2, "0")}/${yil}`;
   }
-
-  // DD.MM.YYYY veya DD/MM/YYYY veya DD-MM-YYYY
-  let ddmmyyyy = val.match(/^(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})$/);
-  if (ddmmyyyy) {
-    let gun = ddmmyyyy[1].padStart(2, "0");
-    let ay = ddmmyyyy[2].padStart(2, "0");
-    let yil = ddmmyyyy[3];
-    return `${gun}.${ay}.${yil}`;
+  // 2025-06-14 veya 14.06.2025 formatında ise olduğu gibi bırak
+  if (val.match(/^\d{2}[./-]\d{2}[./-]\d{4}$/) || val.match(/^\d{4}[./-]\d{2}[./-]\d{2}$/)) {
+    return val;
   }
-
-  // YYYY-MM-DD
-  let yyyymmdd = val.match(/^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})$/);
-  if (yyyymmdd) {
-    let gun = yyyymmdd[3].padStart(2, "0");
-    let ay = yyyymmdd[2].padStart(2, "0");
-    let yil = yyyymmdd[1];
-    return `${gun}.${ay}.${yil}`;
-  }
-
   return val.length > 1 ? val : "Bilinmiyor";
 }
-// --- SADECE BURASI GÜNCELLENDİ! ---
 
-// ========== CSV YÜKLEME & SHEET'TEN ÇEKME ========== //
+// ========== SHEET'TEN ÇEKME ========== //
 function fetchSheetData() {
   showLoadingPopup(true, "");
   fetch(sheetCSV)
@@ -236,13 +216,17 @@ function fetchSheetData() {
     });
 }
 
+// ========== EXCEL (XLSX) YÜKLEME ========== //
 const excelInput = document.getElementById("excelUpload");
 excelInput.addEventListener("change", (e) => {
   const file = e.target.files[0];
   const reader = new FileReader();
   reader.onload = function(event) {
-    const text = event.target.result;
-    const rows = parseCSV(text);
+    const data = event.target.result;
+    const workbook = XLSX.read(data, {type: "binary"});
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:""});
     const headers = rows[0];
     const dataRows = rows.slice(1);
     const priceChangeDateHeader = "Satış Fiyatı 1 Değ. Tar.";
@@ -256,9 +240,9 @@ excelInput.addEventListener("change", (e) => {
       return obj;
     });
 
-    logMessage(`✅ ${excelData.length} ürün CSV ile yüklendi.`);
+    logMessage(`✅ ${excelData.length} ürün Excel ile yüklendi.`);
   };
-  reader.readAsText(file, "UTF-8");
+  reader.readAsBinaryString(file);
 });
 
 // ========== MANUEL ÜRÜN ARAMA ========== //
