@@ -140,9 +140,9 @@
   .popup-content {
     background: #2ecc71;
     color: #fff;
-    padding: 30px;
+    padding: 20px 30px;
     border-radius: 12px;
-    max-width: 450px;
+    max-width: 360px;
     width: 90%;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     text-align: center;
@@ -153,27 +153,25 @@
     background: #e74c3c;
   }
   .popup-content h2 {
-    font-size: 20px;
-    margin: 10px 0;
-  }
-  .popup-content p {
     font-size: 18px;
     margin: 8px 0;
   }
-  /* BURADAN BAŞLIYOR */
+  .popup-content p {
+    font-size: 16px;
+    margin: 6px 0;
+  }
   #product-price {
-    font-size: 72px;
+    font-size: 48px;
     color: #e60000;
     font-weight: 900;
     margin: 8px 0;
   }
   #product-date {
-    font-size: 36px;
+    font-size: 24px;
     color: #5a0000;
     font-weight: 700;
     margin: 8px 0;
   }
-  /* BURADA BİTİYOR */
   .qty-input {
     width: 60px;
     font-size: 20px;
@@ -367,11 +365,8 @@ function stopCamera() {
 function onBarcodeDetected(data) {
   let code = data.codeResult.code;
   if(!code) return;
+  // Barkod okunduğunda Quagga dinleyicisini durdurma, kamera açık kalacak
   Quagga.offDetected(onBarcodeDetected);
-  Quagga.stop();
-  quaggaRunning = false;
-  cameraActive = false;
-  disableManualInput(false);
 
   playBeep();
   vibrateDevice();
@@ -385,6 +380,11 @@ function onBarcodeDetected(data) {
   } else {
     showErrorPopup(code);
   }
+
+  // Quagga dinleyicisini 2 saniye sonra tekrar aktif et
+  setTimeout(() => {
+    Quagga.onDetected(onBarcodeDetected);
+  }, 2000);
 }
 
 function addToScannedList(code) {
@@ -510,7 +510,6 @@ function closePopup() {
 function logMessage(msg) {
   document.getElementById('log').innerText = msg;
 }
-
 </script>
 </body>
 </html>
