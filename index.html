@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Demir Kırtasiye - Kamera Barkod Okuma ve Etiket</title>
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@700&display=swap" rel="stylesheet" />
+<!-- SheetJS KÜTÜPHANESİ EKLENDİ -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
 <style>
   body {font-family: 'Roboto', sans-serif; background: #f5f7fa; margin:0; padding:0; display:flex; flex-direction: column; align-items: center;}
@@ -43,7 +45,6 @@
   .btn-red { background: #e74c3c; color: white; border: none; padding: 10px 20px; font-size: 16px; font-weight: bold; border-radius: 8px; cursor: pointer; margin: 10px 0 0 5px;}
   .btn-red.outline { background: #fff; color: #e74c3c; border: 2px solid #e74c3c; box-shadow: 0 0 0 2px #fff, 0 2px 8px rgba(231,76,60,0.12);}
   .btn-red.outline:hover { background: #fceaea;}
-  /* ---------- Mobil Duyarlılık ---------- */
   @media (max-width: 700px) {
     .container {padding: 6px; margin-top: 8px;}
     .upload-section {flex-direction: column; gap: 8px;}
@@ -371,12 +372,6 @@ function init() {
   manualInput.addEventListener('click', () => { manualInput.focus(); });
   disableManualInput(false);
   if(!cameraActive) { manualInput.focus(); }
-  // SheetJS yükle
-  if (typeof XLSX === "undefined") {
-    var script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
-    document.head.appendChild(script);
-  }
 }
 function disableManualInput(disabled) {
   manualInput.disabled = disabled;
