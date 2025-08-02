@@ -172,14 +172,41 @@
     font-weight: 700;
     margin: 8px 0;
   }
-  .qty-input {
-    width: 60px;
-    font-size: 20px;
-    padding: 5px;
-    text-align: center;
-    margin-top: 10px;
-    border-radius: 8px;
+  .qty-options {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    margin-bottom: 12px;
+  }
+  .qty-btn {
+    background: #eaeaea;
+    color: #222;
     border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+  }
+  .qty-btn.selected, .qty-btn:active {
+    background: #4a90e2;
+    color: #fff;
+  }
+  .qty-btn.big {
+    font-size: 30px;
+    background: #e60000;
+    color: #fff;
+    min-width: 60px;
+    height: 48px;
+  }
+  .qty-custom-input {
+    width: 48px;
+    font-size: 18px;
+    text-align: center;
+    margin-left: 8px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
   }
   .btn-green {
     background: #27ae60;
@@ -243,15 +270,21 @@
     <p id="product-barcode">Barkod: </p>
     <p id="product-price">Fiyat: ₺0,00</p>
     <p id="product-date">Fiyat Değişiklik Tarihi:</p>
-
     <div id="label-controls">
       <p>Kaç adet etiket basılsın?</p>
-      <input type="number" id="qty" class="qty-input" min="1" value="1" /><br />
+      <div class="qty-options" id="qtyOptions">
+        <button class="qty-btn big selected" onclick="selectQty(1)">1</button>
+        <button class="qty-btn" onclick="selectQty(2)">2</button>
+        <button class="qty-btn" onclick="selectQty(3)">3</button>
+        <button class="qty-btn" onclick="selectQty(4)">4</button>
+        <button class="qty-btn" onclick="selectQty(5)">5</button>
+        <button class="qty-btn" id="qtyCustomBtn" onclick="selectQty('custom')">Adet</button>
+        <input type="number" min="1" max="99" id="qtyCustomInput" class="qty-custom-input" style="display:none;" value="1" oninput="selectQty('custom')" />
+      </div>
       <label class="checkbox"><input type="checkbox" id="campaignCheck" /> Kampanyalı</label><br />
       <button class="btn-green" onclick="confirmLabel()">✔ Tamam</button>
       <button class="btn-red" onclick="closePopup()">✖ İptal</button>
     </div>
-
     <div id="error-controls" style="display:none;">
       <button class="btn-red" onclick="closePopup()">✖ Kapat</button>
     </div>
@@ -264,13 +297,11 @@ let selectedProduct = null;
 let cameraActive = false;
 let currentCamera = 'environment'; // 'environment' arka kamera, 'user' ön kamera
 let quaggaRunning = false;
+let selectedQty = 1;
 
 const manualInput = document.getElementById('manual-barcode');
 const cameraPreview = document.getElementById('camera-preview');
 const scannedList = document.getElementById('scanned-list');
-const btnToggleCamera = document.getElementById('btnToggleCamera');
-const btnSwitchCamera = document.getElementById('btnSwitchCamera');
-const btnManualEntry = document.getElementById('btnManualEntry');
 
 function init() {
   manualInput.addEventListener('click', () => {
@@ -289,7 +320,7 @@ function autoStartCamera() {
 
 function disableManualInput(disabled) {
   manualInput.disabled = disabled;
-  if(!disabled && !cameraActive) {
+  if(!disabled && !cameraActive && document.getElementById("popup").style.display === "none") {
     manualInput.focus();
   }
 }
@@ -298,7 +329,7 @@ function toggleManualEntry() {
   if(manualInput.disabled) {
     disableManualInput(false);
     stopCamera();
-    manualInput.focus();
+    manualInput.focus(); // Burada focus olur
   } else {
     disableManualInput(true);
     startCamera();
@@ -365,7 +396,6 @@ function stopCamera() {
 function onBarcodeDetected(data) {
   let code = data.codeResult.code;
   if(!code) return;
-  // Barkod okunduğunda Quagga dinleyicisini durdurma, kamera açık kalacak
   Quagga.offDetected(onBarcodeDetected);
 
   playBeep();
@@ -380,8 +410,6 @@ function onBarcodeDetected(data) {
   } else {
     showErrorPopup(code);
   }
-
-  // Quagga dinleyicisini 2 saniye sonra tekrar aktif et
   setTimeout(() => {
     Quagga.onDetected(onBarcodeDetected);
   }, 2000);
@@ -465,6 +493,30 @@ function searchBarcode() {
   if(!cameraActive) manualInput.focus();
 }
 
+function selectQty(qty) {
+  document.querySelectorAll('.qty-btn').forEach(btn => btn.classList.remove('selected'));
+  if (qty === 'custom') {
+    document.getElementById('qtyCustomBtn').classList.add('selected');
+    document.getElementById('qtyCustomInput').style.display = 'inline-block';
+    selectedQty = parseInt(document.getElementById('qtyCustomInput').value) || 1;
+  } else {
+    selectedQty = qty;
+    document.getElementById('qtyCustomInput').style.display = 'none';
+    document.querySelectorAll('.qty-btn')[qty-1].classList.add('selected');
+    document.getElementById('qtyCustomInput').value = qty;
+  }
+}
+
+function confirmLabel() {
+  let qty = selectedQty;
+  if(document.getElementById('qtyCustomBtn').classList.contains('selected')) {
+    qty = parseInt(document.getElementById('qtyCustomInput').value) || 1;
+  }
+  let isCampaign = document.getElementById("campaignCheck").checked;
+  document.getElementById("popup").style.display = "none";
+  if(!cameraActive) manualInput.focus();
+}
+
 function showPopup(product) {
   selectedProduct = product;
   const popupContent = document.getElementById("popupContent");
@@ -474,9 +526,11 @@ function showPopup(product) {
   document.getElementById("product-price").innerText = `Fiyat: ₺${product["MAĞAZA"]}`;
   document.getElementById("product-date").innerText = `Fiyat Değişiklik Tarihi: ${product["Fiyat Değişiklik Tarihi"]}`;
 
+  // Her popup açıldığında 1 adet varsayılan seçili olsun
+  selectQty(1);
+
   document.getElementById("label-controls").style.display = "block";
   document.getElementById("error-controls").style.display = "none";
-
   document.getElementById("popup").style.display = "flex";
 }
 
@@ -493,13 +547,6 @@ function showErrorPopup(code) {
 
   document.getElementById("popup").style.display = "flex";
   manualInput.value = "";
-}
-
-function confirmLabel() {
-  let qty = document.getElementById("qty").value;
-  let isCampaign = document.getElementById("campaignCheck").checked;
-  document.getElementById("popup").style.display = "none";
-  if(!cameraActive) manualInput.focus();
 }
 
 function closePopup() {
