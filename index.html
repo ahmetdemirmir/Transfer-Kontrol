@@ -166,21 +166,35 @@ function cleanPrice(str) {
 // --- SADECE BU FONKSİYON GÜNCEL! ---
 function cleanDate(val) {
   if (!val) return "Bilinmiyor";
-  val = String(val).replace(/"/g, '').trim();
-  // ISO: 2024-08-03 gibi gelirse
-  if (val.match(/^\d{4}-\d{2}-\d{2}$/)) {
-    const [y, m, d] = val.split("-");
-    return `${d}.${m}.${y}`;
+  val = String(val).replace(/"/g, '').replace(/[^0-9./-]/g, '');
+
+  // MM/DD/YYYY -> DD.MM.YYYY çevir
+  let mmddyyyy = val.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (mmddyyyy) {
+    let gun = mmddyyyy[2].padStart(2, "0");
+    let ay = mmddyyyy[1].padStart(2, "0");
+    let yil = mmddyyyy[3];
+    return `${gun}.${ay}.${yil}`;
   }
-  // 14/06/2024 veya 14.06.2024
-  if (val.match(/^\d{2}[./-]\d{2}[./-]\d{4}$/)) {
-    return val.replace(/-/g,".").replace(/\//g,".");
+
+  // DD.MM.YYYY veya DD/MM/YYYY veya DD-MM-YYYY
+  let ddmmyyyy = val.match(/^(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})$/);
+  if (ddmmyyyy) {
+    let gun = ddmmyyyy[1].padStart(2, "0");
+    let ay = ddmmyyyy[2].padStart(2, "0");
+    let yil = ddmmyyyy[3];
+    return `${gun}.${ay}.${yil}`;
   }
-  // 2024/06/14 gibi gelirse
-  if (val.match(/^\d{4}[./-]\d{2}[./-]\d{2}$/)) {
-    const [y, m, d] = val.split(/[./-]/);
-    return `${d}.${m}.${y}`;
+
+  // YYYY-MM-DD
+  let yyyymmdd = val.match(/^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})$/);
+  if (yyyymmdd) {
+    let gun = yyyymmdd[3].padStart(2, "0");
+    let ay = yyyymmdd[2].padStart(2, "0");
+    let yil = yyyymmdd[1];
+    return `${gun}.${ay}.${yil}`;
   }
+
   return val.length > 1 ? val : "Bilinmiyor";
 }
 // --- SADECE BURASI GÜNCELLENDİ! ---
