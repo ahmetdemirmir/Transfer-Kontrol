@@ -27,7 +27,7 @@
   #log { font-weight: bold; margin-top: 10px; text-align: center;}
   #scanned-list { max-height: 120px; overflow-y: auto; margin-top: 10px; border: 1px solid #ccc; border-radius: 8px; padding: 10px; background: #f9f9f9;}
   #scanned-list li { margin: 5px 0; font-weight: 600;}
-  .popup { display: none; position: fixed; top:0; left:0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center;}
+  .popup { display: none; position: fixed; top:0; left:0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 999;}
   .popup-content { background: #2ecc71; color: #fff; padding: 20px 30px; border-radius: 12px; max-width: 360px; width: 90%; box-shadow: 0 4px 12px rgba(0,0,0,0.3); text-align: center; font-weight: bold; position: relative;}
   .popup-content.loading { background: #4a90e2; color: #fff; font-size: 20px; font-weight: 700;}
   .popup-content.error { background: #e74c3c;}
@@ -56,6 +56,7 @@
     <label for="excelUpload" class="btn">📂 Excel Yükle</label>
     <input type="file" id="excelUpload" accept=".xlsx,.xls" />
     <button class="btn" onclick="fetchSheetData()">🔄 Verileri Otomatik Al</button>
+    <button class="btn" onclick="openManualSearch()">🔍 Manuel Ürün Ara</button>
     <p>Excel dosyanızı buradan yükleyin veya Google Sheets ile verileri çekin</p>
     <div id="lastUpdate" style="font-size:15px; margin-top:8px; color:#444;"></div>
   </div>
@@ -85,6 +86,19 @@
     <span id="loadingText">Veriler yükleniyor...</span>
     <br><br>
     <span id="lastUpdateInfo"></span>
+  </div>
+</div>
+
+<!-- Manuel Ürün Arama Popup -->
+<div class="popup" id="manualSearchPopup">
+  <div class="popup-content" style="max-width:420px; width:96%;">
+    <span style="position:absolute;top:10px;right:18px;font-size:22px;cursor:pointer;" onclick="closeManualSearch()">&times;</span>
+    <h2 style="margin-top:0;">Ürün Bul / Barkod Ara</h2>
+    <input type="text" id="searchInput" placeholder="Son 6 rakam veya ürün adı" oninput="filterManualSearch()" style="width:90%;font-size:18px;padding:10px;margin-bottom:15px;border-radius:8px;border:1px solid #ccc;text-align:center;">
+    <ul id="manualSearchResults" style="list-style:none;padding:0;max-height:210px;overflow-y:auto;margin:0;">
+      <!-- Sonuçlar burada listelenecek -->
+    </ul>
+    <div id="noResultText" style="display:none;color:#c00;font-weight:bold;margin-top:8px;">Ürün bulunamadı!</div>
   </div>
 </div>
 
@@ -127,18 +141,23 @@ const cameraPreview = document.getElementById('camera-preview');
 const scannedList = document.getElementById('scanned-list');
 const sheetCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQAL1Sv9G-ZRLj7-ukvY0ugaSBMscgoiM7Hvo3iLqmwVNKQYmHZhRY0-K3rimSvVw/pub?output=csv";
 
-// Yükleniyor Popup
-function showLoadingPopup(show, lastDate = "") {
-  const popup = document.getElementById('loadingPopup');
-  const info = document.getElementById('lastUpdateInfo');
-  if (show) {
-    popup.style.display = "flex";
-    info.innerHTML = lastDate ? ("Son Güncellenme Tarihi: <b>" + lastDate + "</b>") : "";
-  } else {
-    popup.style.display = "none";
+// --- Fiyat ve tarih temizleme fonksiyonları
+function cleanPrice(str) {
+  if (!str) return "";
+  str = String(str).replace(/"/g, '').replace(/[^\d,\.]/g, '');
+  let match = str.match(/\d+[.,]?\d*/);
+  return match ? match[0].replace('.', ',') : "";
+}
+function cleanDate(val) {
+  if (!val) return "Bilinmiyor";
+  val = String(val).replace(/"/g, '').replace(/[^0-9./-]/g, '');
+  if (val.match(/^\d{2}[./-]\d{2}[./-]\d{4}$/) || val.match(/^\d{4}[./-]\d{2}[./-]\d{2}$/)) {
+    return val;
   }
+  return val.length > 1 ? val : "Bilinmiyor";
 }
 
+// --- CSV veya EXCEL'den veri çekme (TARİH-FİYAT KONTROLLÜ)
 function fetchSheetData() {
   showLoadingPopup(true, "");
   fetch(sheetCSV)
@@ -156,12 +175,14 @@ function fetchSheetData() {
       const rows = csvText.split("\n").map(row => row.split(","));
       const headers = rows[0];
       const dataRows = rows.slice(1).filter(row => row[0]);
+      const priceChangeDateHeader = "Satış Fiyatı 1 Değ. Tar.";
+      const priceChangeDateIndex = headers.findIndex(h => h && h.trim() === priceChangeDateHeader);
+
       excelData = dataRows.map(row => {
         let obj = {};
         headers.forEach((h, i) => obj[h] = row[i]);
-        // Fiyat ve diğer alanlarda istenmeyen karakterler temizleniyor
-        obj["MAĞAZA"] = cleanPrice((obj["MAĞAZA"] || ""));
-        obj["Fiyat Değişiklik Tarihi"] = cleanDate(row[headers.findIndex(h => h && h.trim() === "Satış Fiyatı 1 Değ. Tar.")]);
+        obj["MAĞAZA"] = cleanPrice(obj["MAĞAZA"]);
+        obj["Fiyat Değişiklik Tarihi"] = cleanDate(row[priceChangeDateIndex]);
         return obj;
       });
       logMessage(`✅ ${excelData.length} ürün Google Sheets'den yüklendi!`);
@@ -173,23 +194,7 @@ function fetchSheetData() {
     });
 }
 
-// Fiyat formatlayıcı: Tırnak, harf, boşluk, ADET vb. siler sadece sayı ve nokta/virgül bırakır
-function cleanPrice(str) {
-  if (!str) return "";
-  return String(str).replace(/[^\d.,]/g, "");
-}
-
-// Tarih temizleyici: Geçerli tarih mi, metin mi?
-function cleanDate(val) {
-  if (!val) return "Bilinmiyor";
-  let d = String(val).replace(/"/g, '').replace(/[^0-9./-]/g, '');
-  // (dd.mm.yyyy) veya (yyyy-mm-dd) olursa onu yaz, yoksa "Bilinmiyor"
-  if (d.match(/^\d{2}[./-]\d{2}[./-]\d{4}$/) || d.match(/^\d{4}[./-]\d{2}[./-]\d{2}$/)) {
-    return d;
-  }
-  return val.length > 1 ? val : "Bilinmiyor";
-}
-
+// --- Excel Yükleme (TARİH-FİYAT KONTROLLÜ)
 const excelInput = document.getElementById("excelUpload");
 excelInput.addEventListener("change", (e) => {
   const file = e.target.files[0];
@@ -210,9 +215,8 @@ excelInput.addEventListener("change", (e) => {
     excelData = dataRows.map((row) => {
       let obj = {};
       headers.forEach((h, i) => (obj[h] = row[i]));
-      // Fiyatı ve tarihi temizle
       obj["MAĞAZA"] = cleanPrice(obj["MAĞAZA"]);
-      obj["Fiyat Değişiklik Tarihi"] = cleanDate((priceChangeDateIndex !== -1) ? row[priceChangeDateIndex] : null);
+      obj["Fiyat Değişiklik Tarihi"] = cleanDate(row[priceChangeDateIndex]);
       return obj;
     });
 
@@ -221,97 +225,79 @@ excelInput.addEventListener("change", (e) => {
   reader.readAsArrayBuffer(file);
 });
 
-function searchBarcode() {
-  let code = manualInput.value.trim();
-  if(code === "") return;
-  let found = excelData.find(item => String(item["Barkodu"]) === code);
-  if(found) {
-    showPopup(found);
-    manualInput.value = "";
+// --- Manuel Arama (Barkodun son 6 hanesi veya ürün adı)
+function openManualSearch() {
+  document.getElementById('manualSearchPopup').style.display = 'flex';
+  document.getElementById('searchInput').value = '';
+  filterManualSearch();
+  setTimeout(() => document.getElementById('searchInput').focus(), 100);
+}
+function closeManualSearch() {
+  document.getElementById('manualSearchPopup').style.display = 'none';
+}
+function filterManualSearch() {
+  let val = document.getElementById('searchInput').value.trim().toLowerCase();
+  let resultList = document.getElementById('manualSearchResults');
+  resultList.innerHTML = '';
+  let noResult = document.getElementById('noResultText');
+  let filtered = excelData.filter(item => {
+    let barkod = String(item["Barkodu"] || '').toLowerCase();
+    let ad = String(item["Stok Adı"] || '').toLowerCase();
+    return (
+      (val.length >= 3 && (barkod.endsWith(val) || barkod.includes(val) || ad.includes(val)))
+      || (val.length === 6 && barkod.endsWith(val))
+    );
+  });
+  if(filtered.length === 0) {
+    noResult.style.display = 'block';
+    return;
+  }
+  noResult.style.display = 'none';
+  filtered.slice(0,12).forEach(item => {
+    let li = document.createElement('li');
+    li.innerHTML = `<span style="font-size:17px;font-weight:bold">${item["Barkodu"]}</span> - <span style="font-size:16px">${item["Stok Adı"]}</span>`;
+    li.style.cursor = "pointer";
+    li.style.padding = "9px 6px";
+    li.style.borderBottom = "1px solid #eee";
+    li.addEventListener('click', () => {
+      closeManualSearch();
+      showPopup(item);
+    });
+    resultList.appendChild(li);
+  });
+}
+document.addEventListener('mousedown', function(e){
+  let popup = document.getElementById('manualSearchPopup');
+  if (popup && popup.style.display === "flex") {
+    if (!popup.querySelector('.popup-content').contains(e.target)) {
+      closeManualSearch();
+    }
+  }
+});
+
+// --- Loading Popup
+function showLoadingPopup(show, tarih="") {
+  let pop = document.getElementById('loadingPopup');
+  if(show) {
+    pop.style.display = 'flex';
+    document.getElementById('lastUpdateInfo').innerText = tarih ? `Son güncelleme: ${tarih}` : "";
   } else {
-    showErrorPopup(code);
-  }
-  if(!cameraActive) manualInput.focus();
-}
-
-function selectQty(qty) {
-  document.querySelectorAll('.qty-btn').forEach(btn => btn.classList.remove('selected'));
-  if (qty === 'custom') {
-    document.getElementById('qtyCustomBtn').classList.add('selected');
-    document.getElementById('qtyCustomInput').style.display = 'inline-block';
-    selectedQty = parseInt(document.getElementById('qtyCustomInput').value) || 1;
-  } else {
-    selectedQty = qty;
-    document.getElementById('qtyCustomInput').style.display = 'none';
-    document.querySelectorAll('.qty-btn')[qty-1].classList.add('selected');
-    document.getElementById('qtyCustomInput').value = qty;
+    pop.style.display = 'none';
   }
 }
 
-function confirmLabel() {
-  let qty = selectedQty;
-  if(document.getElementById('qtyCustomBtn').classList.contains('selected')) {
-    qty = parseInt(document.getElementById('qtyCustomInput').value) || 1;
-  }
-  let isCampaign = document.getElementById("campaignCheck").checked;
-  document.getElementById("popup").style.display = "none";
-  if(!cameraActive) manualInput.focus();
-}
-
-function showPopup(product) {
-  selectedProduct = product;
-  const popupContent = document.getElementById("popupContent");
-  popupContent.classList.remove("error");
-  document.getElementById("product-name").innerText = product["Stok Adı"];
-  document.getElementById("product-barcode").innerText = `Barkod: ${product["Barkodu"]}`;
-  document.getElementById("product-price").innerText = `Fiyat: ${product["MAĞAZA"]} ₺`;
-  document.getElementById("product-date").innerText = `Fiyat Değişiklik Tarihi: ${product["Fiyat Değişiklik Tarihi"]}`;
-
-  selectQty(1);
-
-  document.getElementById("label-controls").style.display = "block";
-  document.getElementById("error-controls").style.display = "none";
-  document.getElementById("popup").style.display = "flex";
-}
-
-function showErrorPopup(code) {
-  const popupContent = document.getElementById("popupContent");
-  popupContent.classList.add("error");
-  document.getElementById("product-name").innerText = "Ürün Bulunamadı!";
-  document.getElementById("product-barcode").innerText = `Barkod: ${code}`;
-  document.getElementById("product-price").innerText = "";
-  document.getElementById("product-date").innerText = "";
-
-  document.getElementById("label-controls").style.display = "none";
-  document.getElementById("error-controls").style.display = "block";
-
-  document.getElementById("popup").style.display = "flex";
-  manualInput.value = "";
-}
-
-function closePopup() {
-  document.getElementById("popup").style.display = "none";
-  if(!cameraActive) manualInput.focus();
-}
-
-function logMessage(msg) {
-  document.getElementById('log').innerText = msg;
-}
-
+// --- Geri kalan fonksiyonlar (kamera, barkod, popup ...)
 function init() {
   manualInput.addEventListener('click', () => { manualInput.focus(); });
   disableManualInput(false);
   if(!cameraActive) { manualInput.focus(); }
 }
-
 function disableManualInput(disabled) {
   manualInput.disabled = disabled;
   if(!disabled && !cameraActive && document.getElementById("popup").style.display === "none") {
     manualInput.focus();
   }
 }
-
-// Kamera kodları aşağıda - aynen devam
 function toggleManualEntry() {
   if(manualInput.disabled) {
     disableManualInput(false);
@@ -371,11 +357,78 @@ function addToScannedList(code) {
   scannedList.appendChild(li);
 }
 function playBeep(success = true) {
-  let beep = new Audio(success ? 'beep.ogg' : 'error.ogg');
-  beep.play();
+  // Opsiyonel: beep.ogg ve error.ogg ekleyip kullanabilirsin
+  // let beep = new Audio(success ? 'beep.ogg' : 'error.ogg'); beep.play();
 }
 function vibrateDevice() {
   if(navigator.vibrate) { navigator.vibrate(200); }
+}
+
+function searchBarcode() {
+  let code = manualInput.value.trim();
+  if(code === "") return;
+  let found = excelData.find(item => String(item["Barkodu"]) === code);
+  if(found) {
+    showPopup(found);
+    manualInput.value = "";
+  } else {
+    showErrorPopup(code);
+  }
+  if(!cameraActive) manualInput.focus();
+}
+function selectQty(qty) {
+  document.querySelectorAll('.qty-btn').forEach(btn => btn.classList.remove('selected'));
+  if (qty === 'custom') {
+    document.getElementById('qtyCustomBtn').classList.add('selected');
+    document.getElementById('qtyCustomInput').style.display = 'inline-block';
+    selectedQty = parseInt(document.getElementById('qtyCustomInput').value) || 1;
+  } else {
+    selectedQty = qty;
+    document.getElementById('qtyCustomInput').style.display = 'none';
+    document.querySelectorAll('.qty-btn')[qty-1].classList.add('selected');
+    document.getElementById('qtyCustomInput').value = qty;
+  }
+}
+function confirmLabel() {
+  let qty = selectedQty;
+  if(document.getElementById('qtyCustomBtn').classList.contains('selected')) {
+    qty = parseInt(document.getElementById('qtyCustomInput').value) || 1;
+  }
+  let isCampaign = document.getElementById("campaignCheck").checked;
+  document.getElementById("popup").style.display = "none";
+  if(!cameraActive) manualInput.focus();
+}
+function showPopup(product) {
+  selectedProduct = product;
+  const popupContent = document.getElementById("popupContent");
+  popupContent.classList.remove("error");
+  document.getElementById("product-name").innerText = product["Stok Adı"];
+  document.getElementById("product-barcode").innerText = `Barkod: ${product["Barkodu"]}`;
+  document.getElementById("product-price").innerText = `Fiyat: ${product["MAĞAZA"]} ₺`;
+  document.getElementById("product-date").innerText = `Fiyat Değişiklik Tarihi: ${product["Fiyat Değişiklik Tarihi"]}`;
+  selectQty(1);
+  document.getElementById("label-controls").style.display = "block";
+  document.getElementById("error-controls").style.display = "none";
+  document.getElementById("popup").style.display = "flex";
+}
+function showErrorPopup(code) {
+  const popupContent = document.getElementById("popupContent");
+  popupContent.classList.add("error");
+  document.getElementById("product-name").innerText = "Ürün Bulunamadı!";
+  document.getElementById("product-barcode").innerText = `Barkod: ${code}`;
+  document.getElementById("product-price").innerText = "";
+  document.getElementById("product-date").innerText = "";
+  document.getElementById("label-controls").style.display = "none";
+  document.getElementById("error-controls").style.display = "block";
+  document.getElementById("popup").style.display = "flex";
+  manualInput.value = "";
+}
+function closePopup() {
+  document.getElementById("popup").style.display = "none";
+  if(!cameraActive) manualInput.focus();
+}
+function logMessage(msg) {
+  document.getElementById('log').innerText = msg;
 }
 </script>
 </body>
