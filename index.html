@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Demir Kırtasiye - Kamera Barkod Okuma ve Etiket</title>
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@700&display=swap" rel="stylesheet" />
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
 <style>
   body {font-family: 'Roboto', sans-serif; background: #f5f7fa; margin:0; padding:0; display:flex; flex-direction: column; align-items: center;}
@@ -53,11 +52,11 @@
 </header>
 <div class="container">
   <div class="upload-section">
-    <label for="excelUpload" class="btn">📂 Excel Yükle</label>
-    <input type="file" id="excelUpload" accept=".xlsx,.xls" />
     <button class="btn" onclick="fetchSheetData()">🔄 Verileri Otomatik Al</button>
+    <label for="excelUpload" class="btn">📂 CSV Yükle</label>
+    <input type="file" id="excelUpload" accept=".csv" />
     <button class="btn" onclick="openManualSearch()">🔍 Manuel Ürün Ara</button>
-    <p>Excel dosyanızı buradan yükleyin veya Google Sheets ile verileri çekin</p>
+    <p>CSV dosyanızı buradan yükleyin veya Google Sheets ile verileri çekin</p>
     <div id="lastUpdate" style="font-size:15px; margin-top:8px; color:#444;"></div>
   </div>
 
@@ -95,14 +94,12 @@
     <span style="position:absolute;top:10px;right:18px;font-size:22px;cursor:pointer;" onclick="closeManualSearch()">&times;</span>
     <h2 style="margin-top:0;">Ürün Bul / Barkod Ara</h2>
     <input type="text" id="searchInput" placeholder="Son 6 rakam veya ürün adı" oninput="filterManualSearch()" style="width:90%;font-size:18px;padding:10px;margin-bottom:15px;border-radius:8px;border:1px solid #ccc;text-align:center;">
-    <ul id="manualSearchResults" style="list-style:none;padding:0;max-height:210px;overflow-y:auto;margin:0;">
-      <!-- Sonuçlar burada listelenecek -->
-    </ul>
+    <ul id="manualSearchResults" style="list-style:none;padding:0;max-height:210px;overflow-y:auto;margin:0;"></ul>
     <div id="noResultText" style="display:none;color:#c00;font-weight:bold;margin-top:8px;">Ürün bulunamadı!</div>
   </div>
 </div>
 
-<!-- Var olan popup aynen devam ediyor -->
+<!-- Ürün Popup -->
 <div class="popup" id="popup">
   <div class="popup-content" id="popupContent">
     <h2 id="product-name">ÜRÜN ADI</h2>
@@ -128,7 +125,25 @@
   </div>
 </div>
 
+<!-- Ses dosyaları -->
+<audio id="beep-sound" src="beep.mp3" preload="auto"></audio>
+<audio id="error-sound" src="error.mp3" preload="auto"></audio>
+
 <script>
+// ========== CSV PARSE FONKSİYONU ========== //
+function parseCSVRow(row) {
+  const regex = /(?:,|\n|^)(?:"([^"]*(?:""[^"]*)*)"|([^",\n]*))/g;
+  let matches, cells = [];
+  while ((matches = regex.exec(row))) {
+    cells.push(matches[1] !== undefined ? matches[1].replace(/""/g, '"') : matches[2]);
+  }
+  return cells;
+}
+function parseCSV(text) {
+  return text.split('\n').map(parseCSVRow);
+}
+
+// ========== GLOBALLER ========== //
 let excelData = [];
 let selectedProduct = null;
 let cameraActive = false;
@@ -141,7 +156,6 @@ const cameraPreview = document.getElementById('camera-preview');
 const scannedList = document.getElementById('scanned-list');
 const sheetCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQAL1Sv9G-ZRLj7-ukvY0ugaSBMscgoiM7Hvo3iLqmwVNKQYmHZhRY0-K3rimSvVw/pub?output=csv";
 
-// --- Fiyat ve tarih temizleme fonksiyonları
 function cleanPrice(str) {
   if (!str) return "";
   str = String(str).replace(/"/g, '').replace(/[^\d,\.]/g, '');
@@ -157,7 +171,7 @@ function cleanDate(val) {
   return val.length > 1 ? val : "Bilinmiyor";
 }
 
-// --- CSV veya EXCEL'den veri çekme (TARİH-FİYAT KONTROLLÜ)
+// ========== CSV YÜKLEME & SHEET'TEN ÇEKME ========== //
 function fetchSheetData() {
   showLoadingPopup(true, "");
   fetch(sheetCSV)
@@ -172,7 +186,7 @@ function fetchSheetData() {
       return response.text();
     })
     .then(csvText => {
-      const rows = csvText.split("\n").map(row => row.split(","));
+      const rows = parseCSV(csvText);
       const headers = rows[0];
       const dataRows = rows.slice(1).filter(row => row[0]);
       const priceChangeDateHeader = "Satış Fiyatı 1 Değ. Tar.";
@@ -194,21 +208,15 @@ function fetchSheetData() {
     });
 }
 
-// --- Excel Yükleme (TARİH-FİYAT KONTROLLÜ)
 const excelInput = document.getElementById("excelUpload");
 excelInput.addEventListener("change", (e) => {
   const file = e.target.files[0];
   const reader = new FileReader();
   reader.onload = function(event) {
-    const data = new Uint8Array(event.target.result);
-    const workbook = XLSX.read(data, { type: "array" });
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
-    excelData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-    const headers = excelData[0];
-    const dataRows = excelData.slice(1);
-
+    const text = event.target.result;
+    const rows = parseCSV(text);
+    const headers = rows[0];
+    const dataRows = rows.slice(1);
     const priceChangeDateHeader = "Satış Fiyatı 1 Değ. Tar.";
     const priceChangeDateIndex = headers.findIndex(h => h && h.trim() === priceChangeDateHeader);
 
@@ -220,12 +228,12 @@ excelInput.addEventListener("change", (e) => {
       return obj;
     });
 
-    logMessage(`✅ ${excelData.length} ürün yüklendi.`);
+    logMessage(`✅ ${excelData.length} ürün CSV ile yüklendi.`);
   };
-  reader.readAsArrayBuffer(file);
+  reader.readAsText(file, "UTF-8");
 });
 
-// --- Manuel Arama (Barkodun son 6 hanesi veya ürün adı)
+// ========== MANUEL ÜRÜN ARAMA ========== //
 function openManualSearch() {
   document.getElementById('manualSearchPopup').style.display = 'flex';
   document.getElementById('searchInput').value = '';
@@ -241,11 +249,11 @@ function filterManualSearch() {
   resultList.innerHTML = '';
   let noResult = document.getElementById('noResultText');
   let filtered = excelData.filter(item => {
-    let barkod = String(item["Barkodu"] || '').toLowerCase();
-    let ad = String(item["Stok Adı"] || '').toLowerCase();
+    let barkod = String(item["Barkodu"] || "").toLowerCase();
+    let ad = String(item["Stok Adı"] || "").toLowerCase();
     return (
-      (val.length >= 3 && (barkod.endsWith(val) || barkod.includes(val) || ad.includes(val)))
-      || (val.length === 6 && barkod.endsWith(val))
+      (!val || barkod.includes(val) || ad.includes(val)) ||
+      (val.length === 6 && barkod.endsWith(val))
     );
   });
   if(filtered.length === 0) {
@@ -357,8 +365,8 @@ function addToScannedList(code) {
   scannedList.appendChild(li);
 }
 function playBeep(success = true) {
-  // Opsiyonel: beep.ogg ve error.ogg ekleyip kullanabilirsin
-  // let beep = new Audio(success ? 'beep.ogg' : 'error.ogg'); beep.play();
+  let audio = document.getElementById(success ? "beep-sound" : "error-sound");
+  if(audio) { audio.currentTime = 0; audio.play(); }
 }
 function vibrateDevice() {
   if(navigator.vibrate) { navigator.vibrate(200); }
