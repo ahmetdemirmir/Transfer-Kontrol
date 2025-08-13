@@ -333,6 +333,13 @@ function playBeep(success = true) {
   } catch {}
 }
 
+// Uygunluk kontrollü odak
+function focusIfAppropriate(el){
+  // Mobilde ve kamera açıkken hiçbir input'a odaklanma
+  if (qrScannerActive && isMobile) return;
+  try { el.focus(); } catch {}
+}
+
 // Klavye yönetimi
 function setBarcodeInputReadonly(state) {
   manualBarcode.readOnly = state;
@@ -349,6 +356,10 @@ scanBarcodeBtn.addEventListener('click', () => {
     cameraSwitchBtn.style.display = 'inline-block';
     qrScannerActive = true;
     setBarcodeInputReadonly(true);
+    // Muhtemel açık klavyeyi kapat
+    if (isMobile && document.activeElement && typeof document.activeElement.blur === 'function') {
+      document.activeElement.blur();
+    }
     startQrScanner();
   } else {
     stopQrScanner();
@@ -374,7 +385,7 @@ function captureTrackAndSetupTuning(){
     camZoomRange.disabled = false;
     camZoomRange.addEventListener('input', async () => {
       try { await currentTrack.applyConstraints({ advanced: [{ zoom: parseFloat(camZoomRange.value) }] }); } catch {}
-    });
+    }, { once: true });
   } else {
     camZoomRange.disabled = true;
   }
@@ -386,7 +397,7 @@ function captureTrackAndSetupTuning(){
     camExposureRange.disabled = false;
     camExposureRange.addEventListener('input', async () => {
       try { await currentTrack.applyConstraints({ advanced: [{ exposureCompensation: parseFloat(camExposureRange.value) }] }); } catch {}
-    });
+    }, { once: true });
   } else {
     camExposureRange.disabled = true;
   }
@@ -407,8 +418,12 @@ function startQrScanner() {
         return;
       }
       playBeep(true); vibrate(true);
+      // DEĞİŞİKLİK: Değeri yaz ama odağı asla değiştirme
       manualBarcode.value = code;
+      // Mobilde klavye tetiklenmesin
+      if (isMobile) manualBarcode.blur();
       searchAndShowPopup(code, true);
+      // Not: Odak vermediğimiz için ekran tepeye kaymaz, kamera görünümünde kalır.
     },
     errorMessage => {}
   ).then(() => {
@@ -488,11 +503,20 @@ btnContinueReplace.addEventListener('click', () => {
 });
 
 // Core logic
-closePopupBtn.addEventListener('click', () => { popupOverlay.style.display = 'none'; manualBarcode.focus(); currentProduct = null; });
-closeMissingBtn.addEventListener('click', () => { missingOverlay.style.display = 'none'; manualBarcode.focus(); });
+closePopupBtn.addEventListener('click', () => {
+  popupOverlay.style.display = 'none';
+  // Kamera açık ve mobil ise odak verme
+  focusIfAppropriate(manualBarcode);
+  currentProduct = null;
+});
+closeMissingBtn.addEventListener('click', () => {
+  missingOverlay.style.display = 'none';
+  focusIfAppropriate(manualBarcode);
+});
 closeErrorBtn.addEventListener('click', () => {
   errorOverlay.style.display = 'none';
-  quickSearch.focus();
+  // Hata sonrası odak yok; gerekiyorsa masaüstünde aramaya dönebilir
+  focusIfAppropriate(quickSearch);
   if (qrScannerPausedAfterError) {
     qrScannerPausedAfterError = false;
     if (qrScannerActive) { setTimeout(()=> startQrScanner(), 200); }
@@ -583,7 +607,8 @@ correctBtn.addEventListener('click', () => {
     popupOverlay.style.display = 'none';
     updateCounter();
     checkIfDone();
-    manualBarcode.focus();
+    // Kamera açık + mobilde odak yok
+    focusIfAppropriate(manualBarcode);
     if (qrScannerActive) setTimeout(()=>{ startQrScanner(); },350);
     currentProduct = null;
   }
